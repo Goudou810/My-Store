@@ -1,0 +1,1025 @@
+name: Construire Mon Store
+on:
+  push:
+    paths-ignore:
+      - 'catalogue.json'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Ecrire le projet
+        run: |
+          mkdir -p app app/src/main app/src/main/assets app/src/main/java/com/monstore/app app/src/main/res/drawable app/src/main/res/mipmap-anydpi
+          cat > settings.gradle <<'EOF_S0'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+          rootProject.name = 'MonStore'
+          include ':app'
+          EOF_S0
+          cat > app/build.gradle <<'EOF_S1'
+          plugins { id 'com.android.application' version '8.5.2' }
+
+          def ksFile = System.getenv('KS_FILE')
+
+          android {
+              namespace 'com.monstore.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.monstore.app'
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 100 + (System.getenv('VC') ?: '0').toInteger()
+                  versionName '1.0.' + (System.getenv('VC') ?: '0')
+              }
+              signingConfigs {
+                  release {
+                      if (ksFile) {
+                          storeFile file(ksFile)
+                          storeType 'PKCS12'
+                          storePassword System.getenv('KS_PASS')
+                          keyAlias System.getenv('KS_ALIAS')
+                          keyPassword System.getenv('KS_PASS')
+                      }
+                  }
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      if (ksFile) signingConfig signingConfigs.release
+                  }
+              }
+              lint {
+                  checkReleaseBuilds false
+                  abortOnError false
+              }
+          }
+          EOF_S1
+          cat > app/src/main/AndroidManifest.xml <<'EOF_S2'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+              <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
+              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+              <uses-permission android:name="android.permission.VIBRATE"/>
+              <application
+                  android:label="Mon Store"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@android:style/Theme.Material.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <receiver android:name=".InstallReceiver" android:exported="false"/>
+              </application>
+          </manifest>
+          EOF_S2
+          cat > app/src/main/res/drawable/ic_bg.xml <<'EOF_S3'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:fillColor="#140F3D" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#667C3AED" android:pathData="M96,12m-46,0a46,46 0 1,1 92,0a46,46 0 1,1 -92,0"/>
+              <path android:fillColor="#553B82F6" android:pathData="M10,104m-40,0a40,40 0 1,1 80,0a40,40 0 1,1 -80,0"/>
+          </vector>
+          EOF_S3
+          cat > app/src/main/res/drawable/ic_fg.xml <<'EOF_S4'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#00000000"
+                  android:strokeColor="#FFFFFF"
+                  android:strokeWidth="5"
+                  android:strokeLineCap="round"
+                  android:pathData="M43,46L43,40A11,11 0 0,1 65,40L65,46"/>
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M34,46L74,46L77,80Q77.3,85 72,85L36,85Q30.7,85 31,80Z"/>
+              <path
+                  android:fillColor="#00000000"
+                  android:strokeColor="#7C3AED"
+                  android:strokeWidth="5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:pathData="M54,55L54,73M46,66L54,74L62,66"/>
+          </vector>
+          EOF_S4
+          cat > app/src/main/res/mipmap-anydpi/ic_launcher.xml <<'EOF_S5'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@drawable/ic_bg"/>
+              <foreground android:drawable="@drawable/ic_fg"/>
+          </adaptive-icon>
+          EOF_S5
+          cat > app/src/main/assets/catalogue.json <<'EOF_S6'
+          {
+            "name": "Mon Store",
+            "apps": [
+              {
+                "id": "routine",
+                "name": "Ma routine",
+                "pkg": "com.routine.app",
+                "emoji": "⏱️",
+                "colors": ["#7c3aed", "#2563eb"],
+                "cat": "Productivité",
+                "tagline": "Ta journée en blocs, avec widgets",
+                "desc": "Planifie ta journée en blocs d'activités, reçois des rappels au bon moment et garde ta routine sur ton écran d'accueil grâce à 6 styles de widgets.\n\nComptes en ligne et sauvegarde synchronisée.",
+                "repo": "Goudou810/My-routine",
+                "tag": "apk",
+                "apk": "routine.apk",
+                "meta": "meta.json",
+                "featured": true
+              },
+              {
+                "id": "store",
+                "name": "Mon Store",
+                "pkg": "com.monstore.app",
+                "emoji": "🛍️",
+                "colors": ["#ff6bd6", "#7c3aed"],
+                "cat": "Système",
+                "tagline": "Ce magasin, toujours à jour",
+                "desc": "Les mises à jour de Mon Store lui-même.",
+                "repo": "__REPO__",
+                "tag": "store",
+                "apk": "mon-store.apk",
+                "meta": "meta.json",
+                "self": true
+              }
+            ]
+          }
+          EOF_S6
+          cat > app/src/main/java/com/monstore/app/MainActivity.java <<'EOF_S7'
+          package com.monstore.app;
+
+          import android.app.Activity;
+          import android.app.PendingIntent;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.PackageInfo;
+          import android.content.pm.PackageInstaller;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import java.io.ByteArrayInputStream;
+          import java.io.ByteArrayOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.concurrent.ConcurrentHashMap;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          public class MainActivity extends Activity {
+              static final String HOST = "appassets.androidplatform.net";
+              static MainActivity cur;
+              WebView w;
+              final ConcurrentHashMap<String, Boolean> cancelled = new ConcurrentHashMap<String, Boolean>();
+              final ConcurrentHashMap<String, Boolean> running = new ConcurrentHashMap<String, Boolean>();
+
+              public class Bridge {
+                  @JavascriptInterface
+                  public String installed(String json) {
+                      JSONObject out = new JSONObject();
+                      try {
+                          JSONArray a = new JSONArray(json);
+                          for (int i = 0; i < a.length(); i++) {
+                              String p = a.getString(i);
+                              try {
+                                  PackageInfo pi = getPackageManager().getPackageInfo(p, 0);
+                                  long vc = Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+                                  JSONObject o = new JSONObject();
+                                  o.put("c", vc);
+                                  o.put("n", pi.versionName == null ? "" : pi.versionName);
+                                  out.put(p, o);
+                              } catch (PackageManager.NameNotFoundException e) {
+                                  // pas installée
+                              }
+                          }
+                      } catch (Exception e) {
+                          // liste invalide
+                      }
+                      return out.toString();
+                  }
+
+                  @JavascriptInterface
+                  public boolean canInstall() {
+                      return getPackageManager().canRequestPackageInstalls();
+                  }
+
+                  @JavascriptInterface
+                  public void allowSettings() {
+                      runOnUiThread(new Runnable() {
+                          public void run() {
+                              try {
+                                  startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                          Uri.parse("package:" + getPackageName())));
+                              } catch (Exception e) {
+                                  // réglage indisponible
+                              }
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void fetch(final String id, final String url) {
+                      new Thread(new Runnable() {
+                          public void run() {
+                              doFetch(id, url);
+                          }
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void install(final String pkg, final String url) {
+                      if (running.containsKey(pkg)) return;
+                      running.put(pkg, Boolean.TRUE);
+                      cancelled.remove(pkg);
+                      new Thread(new Runnable() {
+                          public void run() {
+                              doInstall(pkg, url);
+                          }
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void cancel(String pkg) {
+                      cancelled.put(pkg, Boolean.TRUE);
+                  }
+
+                  @JavascriptInterface
+                  public void open(final String pkg) {
+                      runOnUiThread(new Runnable() {
+                          public void run() {
+                              try {
+                                  Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+                                  if (i != null) startActivity(i);
+                              } catch (Exception e) {
+                                  // impossible d'ouvrir
+                              }
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void uninstall(final String pkg) {
+                      runOnUiThread(new Runnable() {
+                          public void run() {
+                              try {
+                                  startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + pkg)));
+                              } catch (Exception e) {
+                                  // impossible de désinstaller
+                              }
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void openUrl(final String url) {
+                      if (url == null || !url.startsWith("https://")) return;
+                      runOnUiThread(new Runnable() {
+                          public void run() {
+                              try {
+                                  startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                              } catch (Exception e) {
+                                  // pas de navigateur
+                              }
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void copy(final String text) {
+                      runOnUiThread(new Runnable() {
+                          public void run() {
+                              try {
+                                  ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                                  cm.setPrimaryClip(ClipData.newPlainText("Mon Store", text));
+                              } catch (Exception e) {
+                                  // presse-papiers indisponible
+                              }
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public String info() {
+                      JSONObject o = new JSONObject();
+                      try {
+                          PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+                          long vc = Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode;
+                          o.put("v", pi.versionName == null ? "" : pi.versionName);
+                          o.put("c", vc);
+                          o.put("sdk", Build.VERSION.SDK_INT);
+                          o.put("model", Build.MODEL);
+                      } catch (Exception e) {
+                          // infos indisponibles
+                      }
+                      return o.toString();
+                  }
+              }
+
+              void js(final String code) {
+                  runOnUiThread(new Runnable() {
+                      public void run() {
+                          if (w != null) w.evaluateJavascript(code, null);
+                      }
+                  });
+              }
+
+              static void result(String pkg, boolean ok, String msg) {
+                  MainActivity a = cur;
+                  if (pkg == null) return;
+                  if (a != null) {
+                      a.running.remove(pkg);
+                      a.js("window.__d(" + JSONObject.quote(pkg) + "," + ok + "," + JSONObject.quote(msg == null ? "" : msg) + ")");
+                  }
+              }
+
+              static void ask(String pkg) {
+                  MainActivity a = cur;
+                  if (a != null && pkg != null) a.js("window.__p(" + JSONObject.quote(pkg) + ",100,\"ask\")");
+              }
+
+              void doFetch(String id, String url) {
+                  HttpURLConnection c = null;
+                  try {
+                      if (url == null || !url.startsWith("https://")) throw new IOException("Lien invalide");
+                      c = (HttpURLConnection) new URL(url).openConnection();
+                      c.setConnectTimeout(15000);
+                      c.setReadTimeout(20000);
+                      c.setRequestProperty("User-Agent", "MonStore/1.0");
+                      c.setRequestProperty("Cache-Control", "no-cache");
+                      int code = c.getResponseCode();
+                      if (code < 200 || code >= 300) throw new IOException("HTTP " + code);
+                      InputStream in = c.getInputStream();
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[8192];
+                      int n;
+                      int total = 0;
+                      while ((n = in.read(buf)) > 0) {
+                          bo.write(buf, 0, n);
+                          total += n;
+                          if (total > 2000000) throw new IOException("Fichier trop gros");
+                      }
+                      in.close();
+                      js("window.__f(" + JSONObject.quote(id) + ",true," + JSONObject.quote(bo.toString("UTF-8")) + ")");
+                  } catch (Exception e) {
+                      js("window.__f(" + JSONObject.quote(id) + ",false," + JSONObject.quote(String.valueOf(e.getMessage())) + ")");
+                  } finally {
+                      if (c != null) c.disconnect();
+                  }
+              }
+
+              void doInstall(String pkg, String url) {
+                  HttpURLConnection c = null;
+                  PackageInstaller.Session s = null;
+                  try {
+                      if (url == null || !url.startsWith("https://")) throw new IOException("Lien invalide");
+                      PackageInstaller pi = getPackageManager().getPackageInstaller();
+                      c = (HttpURLConnection) new URL(url).openConnection();
+                      c.setConnectTimeout(15000);
+                      c.setReadTimeout(30000);
+                      c.setRequestProperty("User-Agent", "MonStore/1.0");
+                      int code = c.getResponseCode();
+                      if (code < 200 || code >= 300) throw new IOException(code == 404 ? "APK introuvable (404). Le dépôt est-il public ?" : "Erreur HTTP " + code);
+                      long len = c.getContentLengthLong();
+                      PackageInstaller.SessionParams p = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                      p.setAppPackageName(pkg);
+                      if (len > 0) p.setSize(len);
+                      int sid = pi.createSession(p);
+                      s = pi.openSession(sid);
+                      InputStream in = c.getInputStream();
+                      OutputStream out = s.openWrite("app.apk", 0, len > 0 ? len : -1);
+                      byte[] buf = new byte[65536];
+                      int n;
+                      long done = 0;
+                      int last = -1;
+                      long lastT = 0;
+                      while ((n = in.read(buf)) > 0) {
+                          if (cancelled.containsKey(pkg)) throw new IOException("Annulé");
+                          out.write(buf, 0, n);
+                          done += n;
+                          long now = System.currentTimeMillis();
+                          int pct = len > 0 ? (int) (done * 100 / len) : 0;
+                          if (pct != last && now - lastT > 120) {
+                              last = pct;
+                              lastT = now;
+                              js("window.__p(" + JSONObject.quote(pkg) + "," + pct + ",\"dl\")");
+                          }
+                      }
+                      s.fsync(out);
+                      out.close();
+                      in.close();
+                      js("window.__p(" + JSONObject.quote(pkg) + ",100,\"inst\")");
+                      Intent it = new Intent(this, InstallReceiver.class);
+                      it.setAction("com.monstore.app.INSTALL_RESULT");
+                      it.putExtra("pkg", pkg);
+                      int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                      if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
+                      PendingIntent pend = PendingIntent.getBroadcast(this, pkg.hashCode(), it, flags);
+                      s.commit(pend.getIntentSender());
+                      s.close();
+                      s = null;
+                  } catch (Exception e) {
+                      if (s != null) {
+                          try {
+                              s.abandon();
+                          } catch (Exception x) {
+                              // session déjà fermée
+                          }
+                      }
+                      running.remove(pkg);
+                      String m = e.getMessage() == null ? "Échec du téléchargement" : e.getMessage();
+                      js("window.__d(" + JSONObject.quote(pkg) + ",false," + JSONObject.quote(m) + ")");
+                  } finally {
+                      if (c != null) c.disconnect();
+                  }
+              }
+
+              WebResourceResponse asset(Uri u) {
+                  if (u == null || !HOST.equals(u.getHost())) return null;
+                  String p = u.getPath();
+                  if (p == null || p.length() < 2) p = "/index.html";
+                  try {
+                      InputStream in = getAssets().open(p.substring(1));
+                      String mime = p.endsWith(".html") ? "text/html"
+                              : p.endsWith(".json") ? "application/json"
+                              : p.endsWith(".js") ? "application/javascript"
+                              : p.endsWith(".css") ? "text/css"
+                              : p.endsWith(".png") ? "image/png"
+                              : "application/octet-stream";
+                      return new WebResourceResponse(mime, "utf-8", in);
+                  } catch (IOException e) {
+                      return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", null,
+                              new ByteArrayInputStream(new byte[0]));
+                  }
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  cur = this;
+                  w = new WebView(this);
+                  w.setBackgroundColor(0xFF070B1C);
+                  getWindow().setStatusBarColor(0xFF070B1C);
+                  getWindow().setNavigationBarColor(0xFF070B1C);
+                  w.getSettings().setJavaScriptEnabled(true);
+                  w.getSettings().setDomStorageEnabled(true);
+                  w.getSettings().setAllowFileAccess(false);
+                  w.getSettings().setAllowContentAccess(false);
+                  w.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
+                          return asset(r.getUrl());
+                      }
+
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                          Uri u = r.getUrl();
+                          if (HOST.equals(u.getHost())) return false;
+                          try {
+                              startActivity(new Intent(Intent.ACTION_VIEW, u));
+                          } catch (Exception e) {
+                              // pas de navigateur
+                          }
+                          return true;
+                      }
+                  });
+                  w.addJavascriptInterface(new Bridge(), "Android");
+                  setContentView(w);
+                  w.loadUrl("https://" + HOST + "/index.html");
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (w != null) w.evaluateJavascript("window.__resume&&window.__resume()", null);
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (cur == this) cur = null;
+                  super.onDestroy();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (w.canGoBack()) w.goBack();
+                  else finish();
+              }
+          }
+          EOF_S7
+          cat > app/src/main/java/com/monstore/app/InstallReceiver.java <<'EOF_S8'
+          package com.monstore.app;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.PackageInstaller;
+
+          public class InstallReceiver extends BroadcastReceiver {
+              static String human(int st, String msg) {
+                  switch (st) {
+                      case PackageInstaller.STATUS_FAILURE_ABORTED:
+                          return "Installation annulée";
+                      case PackageInstaller.STATUS_FAILURE_BLOCKED:
+                          return "Installation bloquée (autorisation ou Play Protect)";
+                      case PackageInstaller.STATUS_FAILURE_CONFLICT:
+                          return "Conflit : une version signée avec une autre clé est déjà installée. Désinstalle-la d'abord.";
+                      case PackageInstaller.STATUS_FAILURE_INCOMPATIBLE:
+                          return "App incompatible avec cet appareil";
+                      case PackageInstaller.STATUS_FAILURE_INVALID:
+                          return "APK invalide ou paquet différent de celui du catalogue";
+                      case PackageInstaller.STATUS_FAILURE_STORAGE:
+                          return "Espace de stockage insuffisant";
+                      default:
+                          return msg == null || msg.length() == 0 ? "Échec de l'installation" : msg;
+                  }
+              }
+
+              @Override
+              public void onReceive(Context c, Intent in) {
+                  int st = in.getIntExtra(PackageInstaller.EXTRA_STATUS, -1);
+                  String pkg = in.getStringExtra("pkg");
+                  if (pkg == null) pkg = in.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME);
+                  String msg = in.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+                  if (st == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                      Intent confirm = in.getParcelableExtra(Intent.EXTRA_INTENT);
+                      if (confirm != null) {
+                          confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                          try {
+                              c.startActivity(confirm);
+                          } catch (Exception e) {
+                              // impossible d'afficher la confirmation
+                          }
+                      }
+                      MainActivity.ask(pkg);
+                  } else if (st == PackageInstaller.STATUS_SUCCESS) {
+                      MainActivity.result(pkg, true, "");
+                  } else {
+                      MainActivity.result(pkg, false, human(st, msg));
+                  }
+              }
+          }
+          EOF_S8
+          cat > app/src/main/assets/index.html <<'EOF_S9'
+          <!doctype html>
+          <html lang="fr"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+          <meta name="theme-color" content="#070b1c"><title>Mon Store</title>
+          <style>
+          :root{--bg:#070b1c;--sf:rgba(255,255,255,.06);--sf2:rgba(255,255,255,.1);--ln:rgba(255,255,255,.12);--ink:#eef1ff;--mu:#9aa6d6;--c1:#b06bff;--c2:#3b8cff;--ok:#34e0a1;--warn:#ffb347;--bad:#ff6b6b;--r:20px}
+          *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+          html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+          button,input,textarea{font:inherit;color:inherit}
+          button{border:0;background:none;cursor:pointer}
+          .fx{position:fixed;inset:0;overflow:hidden;pointer-events:none;transition:transform .6s ease-out}
+          .fx i{position:absolute;border-radius:50%;filter:blur(70px);opacity:.45}
+          .o1{width:300px;height:300px;background:var(--c1);left:-80px;top:-60px;animation:fl 14s ease-in-out infinite alternate}
+          .o2{width:340px;height:340px;background:var(--c2);right:-120px;bottom:60px;animation:fl 17s ease-in-out infinite alternate-reverse}
+          @keyframes fl{to{transform:translate(40px,60px) scale(1.15)}}
+          .app{position:relative;display:flex;flex-direction:column;height:100%}
+          header{display:flex;align-items:center;gap:12px;padding:16px 18px 8px}
+          .logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 8px 24px -8px var(--c1)}
+          .ht{flex:1}.ht b{font-size:20px;display:block}.ht small{color:var(--mu)}
+          .ib{width:42px;height:42px;border-radius:14px;background:var(--sf);border:1px solid var(--ln);font-size:20px}
+          .ib.spin{animation:sp 1s linear infinite}
+          @keyframes sp{to{transform:rotate(360deg)}}
+          main{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 18px 24px;-webkit-overflow-scrolling:touch}
+          .pg{display:none}.pg.on{display:block;animation:pop .35s ease}
+          @keyframes pop{from{opacity:0;transform:translateY(10px)}}
+          .sb{display:flex;align-items:center;gap:10px;padding:0 14px;border-radius:16px;background:var(--sf);border:1px solid var(--ln);margin:6px 0 12px}
+          .sb input{flex:1;background:none;border:0;outline:none;padding:13px 0;font-size:16px}
+          .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;scrollbar-width:none}
+          .chips::-webkit-scrollbar{display:none}
+          .chip{flex:none;padding:8px 14px;border-radius:999px;background:var(--sf);border:1px solid var(--ln);font-size:13px;transition:all .25s}
+          .chip.on{background:linear-gradient(90deg,var(--c1),var(--c2));border-color:transparent;font-weight:700}
+          .hero{position:relative;border-radius:26px;padding:20px;margin-bottom:18px;overflow:hidden;border:1px solid var(--ln);animation:pop .5s ease}
+          .hero:before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.16) 50%,transparent 70%);transform:translateX(-100%);animation:shine 4.5s ease-in-out infinite;pointer-events:none}
+          @keyframes shine{50%,100%{transform:translateX(100%)}}
+          .hero .big{position:absolute;right:-6px;top:-4px;font-size:110px;opacity:.28;transform:rotate(-12deg)}
+          .hero small{opacity:.85;text-transform:uppercase;letter-spacing:1.5px;font-size:11px}
+          .hero h2{margin:4px 0;font-size:26px}
+          .hero p{margin:0 0 14px;opacity:.92;max-width:78%}
+          .st{margin:6px 0 10px;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mu)}
+          .card{display:flex;align-items:center;gap:13px;padding:12px;border-radius:var(--r);background:var(--sf);border:1px solid var(--ln);margin-bottom:10px;animation:pop .45s ease both;animation-delay:var(--d,0ms);transition:transform .15s,background .2s}
+          .card:active{transform:scale(.98);background:var(--sf2)}
+          .tile{flex:none;width:58px;height:58px;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 18px -8px rgba(0,0,0,.6);overflow:hidden}
+          .tile img{width:100%;height:100%;object-fit:cover}
+          .tile.lg{width:84px;height:84px;border-radius:24px;font-size:44px}
+          .ci{flex:1;min-width:0}
+          .ci b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .ci small{display:block;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .ci .vs{margin-top:2px;font-size:12px;color:var(--mu)}
+          .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;margin-right:6px;font-weight:700}
+          .tag.upd{background:rgba(255,179,71,.18);color:var(--warn)}
+          .tag.ok{background:rgba(52,224,161,.16);color:var(--ok)}
+          .tag.new{background:rgba(59,140,255,.18);color:#7db5ff}
+          .act{flex:none;min-width:96px;padding:9px 14px;border-radius:999px;font-weight:700;font-size:13px;background:linear-gradient(90deg,var(--c1),var(--c2));color:#fff;box-shadow:0 8px 18px -8px var(--c1);transition:transform .15s;text-align:center}
+          .act:active{transform:scale(.94)}
+          .act.ok{background:var(--sf2);box-shadow:none;border:1px solid var(--ln)}
+          .act.upd{background:linear-gradient(90deg,#ffb347,#ff7a45);box-shadow:0 8px 18px -8px #ff7a45}
+          .act.big{display:block;width:100%;padding:14px;font-size:16px}
+          .pb{position:relative;flex:none;width:130px;height:36px;border-radius:999px;background:var(--sf2);border:1px solid var(--ln);overflow:hidden;display:flex;align-items:center}
+          .pb.big{width:100%;height:50px}
+          .pb i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--c1),var(--c2));transition:width .2s}
+          .pb span{position:relative;flex:1;text-align:center;font-size:12px;font-weight:700;padding:0 30px}
+          .pb.big span{font-size:15px}
+          .pb .x{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.4);font-size:12px;z-index:2}
+          .hero .pb{background:rgba(0,0,0,.35)}
+          .sk{height:82px;border-radius:var(--r);margin-bottom:10px;background:linear-gradient(90deg,var(--sf) 25%,var(--sf2) 50%,var(--sf) 75%);background-size:200% 100%;animation:skm 1.2s linear infinite}
+          @keyframes skm{to{background-position:-200% 0}}
+          .empty{text-align:center;color:var(--mu);padding:40px 10px}.empty .e{font-size:54px;display:block;margin-bottom:8px}
+          .ub{display:flex;align-items:center;gap:12px;padding:14px;border-radius:var(--r);background:linear-gradient(90deg,rgba(255,179,71,.2),rgba(255,122,69,.14));border:1px solid rgba(255,179,71,.4);margin-bottom:14px}
+          .ub div{flex:1}.ub b{display:block}.ub small{color:#ffd9a0}
+          .tabs{display:flex;padding:8px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(7,11,28,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--ln)}
+          .tabs button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;color:var(--mu);font-size:12px;position:relative;transition:color .2s}
+          .tabs button i{font-style:normal;font-size:22px;transition:transform .25s}
+          .tabs button.on{color:var(--ink);font-weight:700}.tabs button.on i{transform:translateY(-2px) scale(1.15)}
+          .tabs b{position:absolute;top:0;left:56%;min-width:18px;height:18px;border-radius:9px;background:var(--bad);font-size:11px;display:none;align-items:center;justify-content:center;padding:0 4px}
+          .tabs b.on{display:flex}
+          .sheet{position:fixed;inset:0;z-index:40;display:none;align-items:flex-end;background:rgba(0,0,0,.55);backdrop-filter:blur(4px)}
+          .sheet.on{display:flex;animation:fade .25s}
+          @keyframes fade{from{opacity:0}}
+          .sc{width:100%;max-height:92%;overflow-y:auto;border-radius:28px 28px 0 0;background:#0e1430;border:1px solid var(--ln);padding:12px 20px calc(24px + env(safe-area-inset-bottom));animation:up .35s cubic-bezier(.2,.9,.3,1)}
+          @keyframes up{from{transform:translateY(100%)}}
+          .hd{width:44px;height:5px;border-radius:3px;background:var(--ln);margin:0 auto 16px}
+          .sh{display:flex;gap:16px;align-items:center;margin-bottom:16px}
+          .sh h2{margin:0;font-size:24px}.sh small{color:var(--mu)}
+          .stats{display:flex;border:1px solid var(--ln);border-radius:var(--r);margin:14px 0;background:var(--sf)}
+          .stats div{flex:1;text-align:center;padding:10px 4px;border-right:1px solid var(--ln);min-width:0}.stats div:last-child{border:0}
+          .stats b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stats small{color:var(--mu);font-size:11px}
+          .sec{margin:18px 0 6px;font-weight:700}
+          .txt{color:#c9d2f5;white-space:pre-wrap}
+          .shots{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+          .shots img{height:220px;border-radius:16px;border:1px solid var(--ln);flex:none}
+          .row2{display:flex;gap:10px;margin-top:14px}.row2 .act{flex:1}
+          .set{padding:16px;border-radius:var(--r);background:var(--sf);border:1px solid var(--ln);margin-bottom:12px}
+          .set b{display:block;margin-bottom:4px}.set p{margin:0 0 10px;color:var(--mu)}
+          .ok-t{color:var(--ok)}.bad-t{color:var(--warn)}
+          .frm input{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--ln);background:var(--sf);outline:none;margin-bottom:8px;font-size:15px}
+          pre{background:#060a1a;border:1px solid var(--ln);border-radius:14px;padding:12px;overflow:auto;max-height:200px;font-size:11px;white-space:pre-wrap;word-break:break-all}
+          #toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));z-index:90;transform:translate(-50%,30px);opacity:0;max-width:88vw;padding:12px 18px;border-radius:16px;background:rgba(20,25,60,.96);border:1px solid var(--ln);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-weight:600;font-size:14px;text-align:center;pointer-events:none;transition:opacity .3s,transform .4s cubic-bezier(.2,.9,.3,1.3)}
+          #toast.on{opacity:1;transform:translate(-50%,0)}
+          #cf{position:fixed;inset:0;z-index:95;pointer-events:none;width:100%;height:100%}
+          #splash{position:fixed;inset:0;z-index:100;background:#070b1c;display:flex;align-items:center;justify-content:center;transition:opacity .3s}
+          #splash.off{opacity:0;pointer-events:none}
+          #splash span{font-size:56px;animation:bob 2.2s ease-in-out infinite}
+          @keyframes bob{50%{transform:translateY(-10px)}}
+          @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+          </style></head>
+          <body>
+          <div id="splash"><span>🛍️</span></div>
+          <div class="fx" id="fx"><i class="o1"></i><i class="o2"></i></div>
+          <div class="app">
+           <header><div class="logo">🛍️</div><div class="ht"><b id="ttl">Mon Store</b><small id="sub">Chargement…</small></div><button id="rf" class="ib" aria-label="Actualiser">⟳</button></header>
+           <main id="main">
+            <section id="p-explore" class="pg on">
+             <div id="ubar"></div>
+             <div class="sb"><span>🔍</span><input id="q" placeholder="Rechercher une app" autocomplete="off"></div>
+             <div class="chips" id="cats"></div>
+             <div id="hero"></div>
+             <div class="st" id="lt">Toutes les apps</div>
+             <div id="list"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+            </section>
+            <section id="p-mine" class="pg"><div id="mine"></div></section>
+            <section id="p-set" class="pg"><div id="set"></div></section>
+           </main>
+           <nav class="tabs">
+            <button data-t="explore" class="on"><i>🧭</i>Explorer</button>
+            <button data-t="mine"><i>📲</i>Mes apps<b id="badge"></b></button>
+            <button data-t="set"><i>⚙️</i>Réglages</button>
+           </nav>
+          </div>
+          <div id="sheet" class="sheet"><div class="sc" id="sc"></div></div>
+          <div id="toast"></div>
+          <canvas id="cf"></canvas>
+          <script>
+          const REPO="__REPO__",BRANCH="__BRANCH__";
+          const $=id=>document.getElementById(id);
+          const AND=typeof Android!=="undefined"?Android:null;
+          const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+          let CAT={apps:[]},META={},INST={},BUSY={},CAN=true,FILTER="Tout",QRY="",TAB="explore",SHEET="",QUEUE=[],LASTLOAD=0,OFFLINE=false;
+          function splashOff(){const e=$("splash");if(e)e.classList.add("off")}
+          setTimeout(splashOff,3500);
+          function vib(p){try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}}
+          let toastT=0;
+          function toast(t,ms){const e=$("toast");e.textContent=t;e.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove("on"),ms||2600)}
+          const CF=[];let cfRun=false;
+          function burst(n){
+           const c=$("cf"),w=c.width=innerWidth,h=c.height=innerHeight;
+           const cols=["#b06bff","#3b8cff","#34e0a1","#ffb347","#ff5a1f","#ff6bd6"];
+           for(let i=0;i<(n||90);i++){const a=Math.random()*Math.PI*2,v=4+Math.random()*9;CF.push({x:w/2,y:h*.4,vx:Math.cos(a)*v,vy:Math.sin(a)*v-6,s:4+Math.random()*6,r:Math.random()*6,vr:(Math.random()-.5)*.4,c:cols[i%cols.length],l:70+Math.random()*50})}
+           if(!cfRun){cfRun=true;requestAnimationFrame(cfLoop)}}
+          function cfLoop(){
+           const c=$("cf"),g=c.getContext("2d");g.clearRect(0,0,c.width,c.height);
+           for(let i=CF.length-1;i>=0;i--){const p=CF[i];p.vy+=.35;p.vx*=.99;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;p.l--;
+            if(p.l<=0||p.y>c.height+20){CF.splice(i,1);continue}
+            g.save();g.translate(p.x,p.y);g.rotate(p.r);g.globalAlpha=Math.min(1,p.l/30);g.fillStyle=p.c;g.fillRect(-p.s/2,-p.s/3,p.s,p.s*.6);g.restore()}
+           if(CF.length)requestAnimationFrame(cfLoop);else{cfRun=false;g.clearRect(0,0,c.width,c.height)}}
+
+          /* ---------- réseau (via Java pour éviter les blocages CORS) ---------- */
+          const CB={};let cbN=0;
+          window.__f=function(id,ok,txt){const c=CB[id];if(!c)return;delete CB[id];if(ok)c.res(txt);else c.rej(new Error(txt))};
+          function jfetch(url){
+           if(!AND)return fetch(url,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.text()});
+           return new Promise((res,rej)=>{const id="f"+(++cbN);CB[id]={res:res,rej:rej};AND.fetch(id,url)})}
+          function tryJson(t){try{return JSON.parse(t)}catch(e){return null}}
+          async function loadCatalogue(){
+           let j=null;
+           if(REPO.indexOf("/")>0){try{j=tryJson(await jfetch("https://raw.githubusercontent.com/"+REPO+"/"+BRANCH+"/catalogue.json?t="+Date.now()))}catch(e){}}
+           if(!j||!Array.isArray(j.apps)){try{j=tryJson(await (await fetch("catalogue.json")).text())}catch(e){}}
+           if(j&&Array.isArray(j.apps)){CAT=j;CAT.apps=j.apps.filter(a=>a&&a.id&&a.pkg&&a.name);return true}
+           return false}
+          const rel=(a,f)=>"https://github.com/"+a.repo+"/releases/download/"+encodeURIComponent(a.tag||"apk")+"/"+encodeURIComponent(f);
+          const apkUrl=a=>a.apkUrl||rel(a,a.apk||"app.apk");
+          const metaUrl=a=>a.metaUrl||(a.repo&&a.meta!==""?rel(a,a.meta||"meta.json"):"");
+          async function loadMetas(){
+           let fails=0;
+           await Promise.all(CAT.apps.map(async a=>{
+            const u=metaUrl(a);let m=null;
+            if(u){try{m=tryJson(await jfetch(u))}catch(e){fails++}}
+            META[a.id]=m&&typeof m==="object"?m:null}));
+           OFFLINE=CAT.apps.length>0&&fails===CAT.apps.length}
+
+          /* ---------- état des apps ---------- */
+          const byId=id=>CAT.apps.find(a=>a.id===id);
+          const byPkg=p=>CAT.apps.find(a=>a.pkg===p);
+          function refreshInstalled(){
+           if(!AND){INST={};return}
+           try{INST=JSON.parse(AND.installed(JSON.stringify(CAT.apps.map(a=>a.pkg))))||{}}catch(e){INST={}}
+           try{CAN=!!AND.canInstall()}catch(e){}}
+          function remoteCode(a){const m=META[a.id]||{};return +m.versionCode||+a.versionCode||0}
+          function remoteName(a){const m=META[a.id]||{};return m.versionName||a.version||""}
+          function status(a){
+           const i=INST[a.pkg];
+           if(!i)return"new";
+           const rc=remoteCode(a);
+           return rc&&rc>i.c?"upd":"ok"}
+          function fmtSize(b){b=+b||0;if(!b)return"";return b>=1048576?(b/1048576).toFixed(1).replace(".",",")+" Mo":Math.max(1,Math.round(b/1024))+" Ko"}
+          const okColor=c=>/^#[0-9a-fA-F]{3,8}$/.test(c);
+          function grad(a){const c=a.colors||[];return"linear-gradient(135deg,"+(okColor(c[0])?c[0]:"#7c3aed")+","+(okColor(c[1])?c[1]:"#2563eb")+")"}
+          function tile(a,lg){
+           const img=/^https:\/\//.test(a.icon||"");
+           return'<div class="tile'+(lg?" lg":"")+'" style="background:'+grad(a)+'">'+(img?'<img src="'+esc(a.icon)+'" alt="">':esc(a.emoji||"📦"))+'</div>'}
+          function btn(a,big){
+           const b=BUSY[a.id];
+           if(b)return'<div class="pb'+(big?" big":"")+'"><i style="width:'+b.p+'%"></i><span>'+esc(b.txt)+'</span><button class="x" data-act="cancel" data-id="'+esc(a.id)+'" aria-label="Annuler">✕</button></div>';
+           const s=status(a);
+           return'<button class="act '+s+(big?" big":"")+'" data-act="'+(s==="ok"?"open":"install")+'" data-id="'+esc(a.id)+'">'+(s==="new"?"Installer":s==="upd"?"Mettre à jour":"Ouvrir")+'</button>'}
+          function verLine(a){
+           const s=status(a),i=INST[a.pkg],vn=remoteName(a),m=META[a.id]||{};
+           if(s==="upd")return'<span class="tag upd">MAJ</span>'+esc((i&&i.n)||"")+" → "+esc(vn);
+           if(s==="ok")return'<span class="tag ok">Installé</span>'+esc((i&&i.n)||vn);
+           return'<span class="tag new">'+(vn?"v"+esc(vn):"Disponible")+'</span>'+esc(fmtSize(m.size))}
+          function paint(id){
+           const a=byId(id);if(!a)return;
+           const L=document.querySelectorAll('[data-slot="'+id+'"]');
+           for(let k=0;k<L.length;k++)L[k].innerHTML=btn(a,L[k].dataset.big==="1")}
+
+          /* ---------- rendu ---------- */
+          function visible(){
+           const q=QRY.trim().toLowerCase();
+           return CAT.apps.filter(a=>(FILTER==="Tout"||a.cat===FILTER)&&(!q||(a.name+" "+(a.tagline||"")+" "+(a.cat||"")).toLowerCase().indexOf(q)>=0))}
+          function card(a,i){
+           return'<div class="card" style="--d:'+Math.min(i,8)*45+'ms" data-open="'+esc(a.id)+'">'+tile(a)+'<div class="ci"><b>'+esc(a.name)+'</b><small>'+esc(a.tagline||a.cat||"")+'</small><div class="vs">'+verLine(a)+'</div></div><div data-slot="'+esc(a.id)+'">'+btn(a)+'</div></div>'}
+          function rExplore(){
+           const cats=["Tout"].concat(CAT.apps.map(a=>a.cat).filter((c,i,t)=>c&&t.indexOf(c)===i));
+           if(cats.indexOf(FILTER)<0)FILTER="Tout";
+           $("cats").innerHTML=cats.map(c=>'<button class="chip'+(c===FILTER?" on":"")+'" data-cat="'+esc(c)+'">'+esc(c)+'</button>').join("");
+           const self=CAT.apps.find(a=>a.self);
+           $("ubar").innerHTML=self&&status(self)==="upd"?'<div class="ub"><div><b>Mise à jour du Store</b><small>Version '+esc(remoteName(self))+' disponible</small></div><span data-slot="'+esc(self.id)+'">'+btn(self)+'</span></div>':"";
+           const f=!QRY&&FILTER==="Tout"?CAT.apps.find(a=>a.featured):null;
+           $("hero").innerHTML=f?'<div class="hero" style="background:'+grad(f)+'" data-open="'+esc(f.id)+'"><div class="big">'+esc(f.emoji||"📦")+'</div><small>À la une</small><h2>'+esc(f.name)+'</h2><p>'+esc(f.tagline||"")+'</p><div data-slot="'+esc(f.id)+'">'+btn(f)+'</div></div>':"";
+           const L=visible();
+           $("lt").textContent=QRY?L.length+" résultat"+(L.length>1?"s":""):FILTER==="Tout"?"Toutes les apps":FILTER;
+           $("list").innerHTML=L.length?L.map(card).join(""):'<div class="empty"><span class="e">🔎</span>Aucune app trouvée</div>'}
+          function rMine(){
+           const L=CAT.apps.filter(a=>INST[a.pkg]).sort((a,b)=>(status(b)==="upd")-(status(a)==="upd"));
+           const n=L.filter(a=>status(a)==="upd").length;
+           let h="";
+           if(n)h+='<div class="ub"><div><b>'+n+' mise'+(n>1?"s":"")+' à jour disponible'+(n>1?"s":"")+'</b><small>Installation une par une</small></div><button class="act upd" data-act="updall">Tout mettre à jour</button></div>';
+           h+=L.length?L.map(card).join(""):'<div class="empty"><span class="e">📭</span>Aucune app du catalogue n\'est installée.<br>Va dans Explorer pour en installer.</div>';
+           $("mine").innerHTML=h;
+           const b=$("badge");b.textContent=n;b.classList.toggle("on",n>0)}
+          function rSet(){
+           let inf={};try{if(AND)inf=JSON.parse(AND.info())}catch(e){}
+           const self=CAT.apps.find(a=>a.self);
+           $("set").innerHTML=
+            '<div class="set"><b>Autorisation d\'installer</b><p>'+(AND?(CAN?'<span class="ok-t">✓ Activée.</span> Le Store peut installer et mettre à jour tes apps.':'<span class="bad-t">Désactivée.</span> Android demande d\'autoriser « Installer des applis inconnues » pour Mon Store.'):'Disponible dans l\'application Android.')+'</p>'+(AND&&!CAN?'<button class="act" data-act="perm">Ouvrir le réglage</button>':'')+'</div>'+
+            '<div class="set"><b>Catalogue</b><p>'+esc(CAT.apps.length)+' app(s)'+(REPO.indexOf("/")>0?' · source : '+esc(REPO)+' ('+esc(BRANCH)+')':'')+(OFFLINE?'<br><span class="bad-t">Hors ligne : versions non vérifiées.</span>':'')+'</p><button class="act ok" data-act="refresh">Actualiser</button></div>'+
+            '<div class="set"><b>Ajouter une app au catalogue</b><p>Remplis un petit formulaire, le Store te donne le texte à coller dans <i>catalogue.json</i>.</p><button class="act" data-act="addform">Ajouter une app</button></div>'+
+            '<div class="set"><b>Mon Store</b><p>Version '+esc(inf.v||"—")+(inf.sdk?' · Android '+esc(inf.sdk):'')+(self&&status(self)==="upd"?'<br><span class="bad-t">Version '+esc(remoteName(self))+' disponible.</span>':'')+'</p>'+(self&&status(self)==="upd"?'<span data-slot="'+esc(self.id)+'">'+btn(self)+'</span>':'')+'</div>'+
+            '<div class="set"><b>À savoir</b><p>N\'installe que des apps dont tu es l\'auteur ou dont tu as le droit de diffuser l\'APK. Les mises à jour ne fonctionnent que si l\'app est signée avec la même clé que la version installée.</p></div>'}
+          function render(){rExplore();rMine();if(TAB==="set")rSet()}
+          function go(t){
+           TAB=t;vib(8);
+           document.querySelectorAll(".pg").forEach(p=>p.classList.toggle("on",p.id==="p-"+t));
+           document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+           if(t==="set")rSet();$("main").scrollTop=0}
+
+          /* ---------- fiche détaillée ---------- */
+          function sheetHtml(a){
+           const m=META[a.id]||{},i=INST[a.pkg],notes=m.notes||a.notes||"",vn=remoteName(a);
+           const shots=(a.shots||[]).filter(u=>/^https:\/\//.test(u));
+           return'<div class="hd"></div><div class="sh">'+tile(a,true)+'<div><h2>'+esc(a.name)+'</h2><small>'+esc(a.author||a.cat||"")+'</small></div></div>'+
+            '<div data-slot="'+esc(a.id)+'" data-big="1">'+btn(a,true)+'</div>'+
+            '<div class="stats"><div><b>'+esc(vn||"—")+'</b><small>Version</small></div><div><b>'+esc(fmtSize(m.size)||"—")+'</b><small>Taille</small></div><div><b>'+esc(a.cat||"—")+'</b><small>Catégorie</small></div></div>'+
+            (shots.length?'<div class="shots">'+shots.map(u=>'<img loading="lazy" src="'+esc(u)+'" alt="">').join("")+'</div>':"")+
+            '<div class="sec">Description</div><div class="txt">'+esc(a.desc||a.tagline||"Aucune description.")+'</div>'+
+            (notes?'<div class="sec">Nouveautés</div><div class="txt">'+esc(notes)+'</div>':"")+
+            (i?'<div class="sec">Sur ton téléphone</div><div class="txt">Version installée : '+esc(i.n||"?")+' (build '+esc(i.c)+')</div>':"")+
+            '<div class="row2">'+(i?'<button class="act ok" data-act="uninstall" data-id="'+esc(a.id)+'">Désinstaller</button>':"")+'<button class="act ok" data-act="share" data-id="'+esc(a.id)+'">Copier le lien</button></div>'}
+          function openSheet(id){
+           const a=byId(id);if(!a)return;
+           SHEET=id;$("sc").innerHTML=sheetHtml(a);$("sheet").classList.add("on");
+           try{history.pushState({s:1},"")}catch(e){}}
+          function refreshSheet(){const a=byId(SHEET);if(a&&$("sheet").classList.contains("on"))$("sc").innerHTML=sheetHtml(a)}
+          function hideSheet(){SHEET="";$("sheet").classList.remove("on")}
+          function closeSheet(){if(!SHEET)return;let ok=false;try{history.back();ok=true}catch(e){}if(!ok)hideSheet()}
+          window.addEventListener("popstate",hideSheet);
+
+          /* ---------- installation ---------- */
+          function startInstall(a){
+           if(BUSY[a.id])return;
+           if(!AND){window.open(apkUrl(a),"_blank");return}
+           if(!AND.canInstall()){CAN=false;toast("Autorise d'abord l'installation pour Mon Store");vib(30);AND.allowSettings();return}
+           BUSY[a.id]={p:0,txt:"Connexion…"};paint(a.id);
+           AND.install(a.pkg,apkUrl(a))}
+          window.__p=function(pkg,p,st){
+           const a=byPkg(pkg);if(!a)return;
+           const b=BUSY[a.id]||(BUSY[a.id]={p:0,txt:""});
+           b.p=p;b.txt=st==="dl"?"Téléchargement "+p+"%":st==="inst"?"Installation…":st==="ask"?"Confirme l'installation":"…";
+           paint(a.id)};
+          window.__d=function(pkg,ok,msg){
+           const a=byPkg(pkg);if(!a)return;
+           delete BUSY[a.id];refreshInstalled();
+           if(ok){burst(90);vib([50,40,50]);toast("✅ "+a.name+" est installé !")}
+           else{if(/annul/i.test(msg||""))QUEUE=[];toast("⚠ "+(msg||"Échec de l'installation"),4200);vib(60)}
+           render();if(TAB==="set")rSet();if(SHEET)refreshSheet();
+           nextQueue()};
+          window.__resume=function(){refreshInstalled();render();if(TAB==="set")rSet();if(SHEET)refreshSheet()};
+          function nextQueue(){
+           if(Object.keys(BUSY).length||!QUEUE.length)return;
+           const a=byId(QUEUE.shift());if(a)startInstall(a)}
+          function act(name,id){
+           const a=id?byId(id):null;
+           if(name==="install"&&a)startInstall(a);
+           else if(name==="open"&&a){if(AND)AND.open(a.pkg);else toast("Disponible dans l'app Android")}
+           else if(name==="cancel"&&a){QUEUE=[];if(AND)AND.cancel(a.pkg);const b=BUSY[a.id];if(b)b.txt="Annulation…";paint(a.id)}
+           else if(name==="uninstall"&&a){if(AND)AND.uninstall(a.pkg)}
+           else if(name==="share"&&a){const u=apkUrl(a);if(AND)AND.copy(u);else try{navigator.clipboard.writeText(u)}catch(e){}toast("Lien de téléchargement copié")}
+           else if(name==="updall"){QUEUE=CAT.apps.filter(x=>status(x)==="upd"&&!BUSY[x.id]).map(x=>x.id);nextQueue()}
+           else if(name==="perm"){if(AND)AND.allowSettings()}
+           else if(name==="refresh")reload(true)
+           else if(name==="addform")openAdd()}
+
+          /* ---------- formulaire d'ajout ---------- */
+          function openAdd(){
+           SHEET="add";
+           $("sc").innerHTML='<div class="hd"></div><div class="sh"><div class="tile lg" style="background:'+grad({})+'">➕</div><div><h2>Ajouter une app</h2><small>Génère le catalogue à jour</small></div></div>'+
+            '<div class="frm"><input id="f_name" placeholder="Nom (ex : Mon Journal)"><input id="f_pkg" placeholder="Package (ex : com.exemple.journal)" autocapitalize="none"><input id="f_repo" placeholder="Dépôt GitHub (ex : pseudo/mon-depot)" autocapitalize="none"><input id="f_apk" placeholder="Fichier APK (ex : journal.apk)" autocapitalize="none"><input id="f_tag" placeholder="Tag de la release (défaut : apk)" autocapitalize="none"><input id="f_emoji" placeholder="Emoji (ex : 📓)"><input id="f_cat" placeholder="Catégorie (ex : Productivité)"><input id="f_desc" placeholder="Description courte"></div>'+
+            '<div class="sec">Résultat à coller dans catalogue.json</div><pre id="f_out"></pre>'+
+            '<div class="row2"><button class="act" data-act="copycat">Copier le catalogue</button></div>'+
+            '<p class="txt" style="margin-top:12px">Dans ton dépôt du Store, crée (ou modifie) le fichier <b>catalogue.json</b> et remplace tout son contenu par ce texte. L\'app le recharge toute seule, sans nouvelle version.</p>';
+           $("sheet").classList.add("on");
+           try{history.pushState({s:1},"")}catch(e){}
+           ["f_name","f_pkg","f_repo","f_apk","f_tag","f_emoji","f_cat","f_desc"].forEach(i=>$(i).addEventListener("input",genJson));
+           genJson()}
+          function genEntry(){
+           const v=i=>$(i).value.trim(),name=v("f_name"),pkg=v("f_pkg"),repo=v("f_repo");
+           if(!name||!pkg||!repo)return null;
+           const e={id:pkg.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g,"")||"app"+Date.now(),name:name,pkg:pkg,emoji:v("f_emoji")||"📦",colors:["#7c3aed","#2563eb"],cat:v("f_cat")||"Divers",tagline:v("f_desc"),desc:v("f_desc"),repo:repo,tag:v("f_tag")||"apk",apk:v("f_apk")||"app.apk",meta:"meta.json"};
+           return e}
+          function genJson(){
+           const e=genEntry(),apps=CAT.apps.slice();
+           if(e)apps.push(e);
+           $("f_out").textContent=JSON.stringify({name:CAT.name||"Mon Store",apps:apps},null,2)}
+          function copyCat(){
+           const t=$("f_out").textContent;
+           if(!genEntry()){toast("Remplis au moins le nom, le package et le dépôt");return}
+           if(AND)AND.copy(t);else try{navigator.clipboard.writeText(t)}catch(e){}
+           toast("Catalogue copié, colle-le dans catalogue.json",3200);vib(20)}
+
+          /* ---------- événements ---------- */
+          document.addEventListener("click",e=>{
+           const t=e.target;if(!t.closest)return;
+           const b=t.closest("[data-act]");
+           if(b){e.stopPropagation();if(b.dataset.act==="copycat")copyCat();else act(b.dataset.act,b.dataset.id);return}
+           const c=t.closest("[data-open]");if(c){openSheet(c.dataset.open);return}
+           const ch=t.closest("[data-cat]");if(ch){FILTER=ch.dataset.cat;vib(8);rExplore();return}
+           const tb=t.closest("[data-t]");if(tb){go(tb.dataset.t);return}
+           if(t===$("sheet"))closeSheet()});
+          $("q").addEventListener("input",()=>{QRY=$("q").value;rExplore()});
+          $("rf").addEventListener("click",()=>reload(true));
+          document.addEventListener("visibilitychange",()=>{if(!document.hidden)window.__resume()});
+
+          async function reload(manual){
+           const rf=$("rf");rf.classList.add("spin");
+           const ok=await loadCatalogue();
+           refreshInstalled();render();
+           await loadMetas();
+           refreshInstalled();LASTLOAD=Date.now();render();if(TAB==="set")rSet();if(SHEET&&SHEET!=="add")refreshSheet();
+           $("ttl").textContent=CAT.name||"Mon Store";
+           $("sub").textContent=CAT.apps.length+" app"+(CAT.apps.length>1?"s":"")+(OFFLINE||!ok?" · hors ligne":"");
+           rf.classList.remove("spin");
+           if(manual)toast(OFFLINE?"Hors ligne : versions non vérifiées":"Catalogue à jour ✓")}
+          (async function(){
+           const ok=await loadCatalogue();
+           refreshInstalled();render();splashOff();
+           await loadMetas();
+           refreshInstalled();LASTLOAD=Date.now();render();
+           $("ttl").textContent=CAT.name||"Mon Store";
+           $("sub").textContent=CAT.apps.length+" app"+(CAT.apps.length>1?"s":"")+(OFFLINE||!ok?" · hors ligne":"")})();
+          </script></body></html>
+          EOF_S9
+      - name: Catalogue et depot
+        run: |
+          if [ -f catalogue.json ]; then cp catalogue.json app/src/main/assets/catalogue.json; fi
+          python3 - <<'PY'
+          import json, os, sys
+          repo = os.environ.get("GITHUB_REPOSITORY", "")
+          branch = os.environ.get("GITHUB_REF_NAME", "main")
+          for p in ("app/src/main/assets/index.html", "app/src/main/assets/catalogue.json"):
+              t = open(p, encoding="utf-8").read()
+              t = t.replace("__REPO__", repo).replace("__BRANCH__", branch)
+              open(p, "w", encoding="utf-8").write(t)
+          try:
+              j = json.load(open("app/src/main/assets/catalogue.json", encoding="utf-8"))
+              assert isinstance(j.get("apps"), list)
+          except Exception as e:
+              print("::error::catalogue.json invalide :", e)
+              sys.exit(1)
+          print("Depot :", repo, branch, "-", len(j["apps"]), "app(s)")
+          PY
+      - name: Cle de signature
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS_SECRET: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS_SECRET" ]; then
+            echo "Cle de signature : secrets GitHub"
+            PASS="$KS_PASS_SECRET"
+          else
+            echo "Cle de signature : cle integree (aucun secret configure)"
+            KS_B64="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"
+            PASS="NlXmfWJAM9ctuRZofPV0pUUU"
+          fi
+          echo "$KS_B64" | tr -d ' \n\r' | base64 -d > "$RUNNER_TEMP/routine.p12"
+          echo "KS_PASS=$PASS" >> "$GITHUB_ENV"
+      - name: Compiler
+        env:
+          KS_FILE: ${{ runner.temp }}/routine.p12
+          KS_ALIAS: routine
+          VC: ${{ github.run_number }}
+        run: gradle assembleRelease --no-daemon
+      - name: Publier l'APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk mon-store.apk
+          python3 - <<'PY'
+          import json, os, subprocess
+          run = os.environ["GITHUB_RUN_NUMBER"]
+          msg = subprocess.run(["git", "log", "-1", "--pretty=%s"], capture_output=True, text=True).stdout.strip()
+          meta = {"package": "com.monstore.app", "versionCode": 100 + int(run), "versionName": "1.0." + run, "size": os.path.getsize("mon-store.apk"), "notes": msg}
+          json.dump(meta, open("meta.json", "w"), ensure_ascii=False)
+          PY
+          gh release delete store -y --cleanup-tag || true
+          gh release create store mon-store.apk meta.json --title "Mon Store" --notes "APK de Mon Store"
